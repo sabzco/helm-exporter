@@ -1,0 +1,14 @@
+apiVersion: v2
+name: helm-exporter
+description: Watch-based Prometheus exporter for Helm v3 releases
+type: application
+# version and appVersion are set from the git tag by the release workflow.
+version: 0.2.0
+appVersion: "0.2.0"
+home: https://github.com/sabzco/helm-exporter
+sources:
+  - https://github.com/sabzco/helm-exporter
+keywords:
+  - helm
+  - prometheus
+  - exporter

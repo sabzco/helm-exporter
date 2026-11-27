@@ -1,0 +1,78 @@
+name: Release
+
+# Needs the repository variable DOCKERHUB_USERNAME and the secret DOCKERHUB_TOKEN
+# (a Docker Hub access token with write access to sabzco/helm-exporter).
+#
+# Push a tag like v0.2.0 to publish:
+#   - the image   docker.io/sabzco/helm-exporter:0.2.0 (and 0.2, latest)
+#   - the chart   oci://ghcr.io/sabzco/charts/helm-exporter:0.2.0
+#   - a GitHub release with the packaged chart attached
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write  # GitHub release
+  packages: write  # chart on ghcr.io
+
+env:
+  IMAGE: docker.io/sabzco/helm-exporter
+  CHART_REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/charts
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=${{ github.ref_name }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - uses: azure/setup-helm@v4
+      - name: Package and push chart
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          helm package charts/helm-exporter --version "$VERSION" --app-version "$VERSION" -d dist
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm push "dist/helm-exporter-$VERSION.tgz" "$CHART_REGISTRY"
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.tgz --generate-notes \
+            $([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease)

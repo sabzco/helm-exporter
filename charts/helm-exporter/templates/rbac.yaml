@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "helm-exporter.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "helm-exporter.labels" . | nindent 4 }}
+{{- $rule := dict "apiGroups" (list "") "resources" (list "secrets") "verbs" (list "list" "watch") }}
+{{- $namespaces := include "helm-exporter.namespaces" . | fromJsonArray }}
+{{- if $namespaces }}
+{{- range $namespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "helm-exporter.fullname" $ }}
+  namespace: {{ . }}
+  labels: {{- include "helm-exporter.labels" $ | nindent 4 }}
+rules:
+  - {{- toYaml $rule | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "helm-exporter.fullname" $ }}
+  namespace: {{ . }}
+  labels: {{- include "helm-exporter.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "helm-exporter.fullname" $ }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "helm-exporter.fullname" $ }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- else }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "helm-exporter.fullname" . }}
+  labels: {{- include "helm-exporter.labels" . | nindent 4 }}
+rules:
+  - {{- toYaml $rule | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "helm-exporter.fullname" . }}
+  labels: {{- include "helm-exporter.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "helm-exporter.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "helm-exporter.fullname" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

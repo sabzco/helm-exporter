@@ -1,0 +1,37 @@
+# Metrics are compatible with sstarcher/helm-exporter.
+image:
+  repository: sabzco/helm-exporter
+  tag: ""  # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+# Secret names (or {name: ...} entries) for pulling from a private mirror.
+imagePullSecrets: []
+
+# Namespaces to watch, as a list or a comma-separated string. Empty means all
+# namespaces (ClusterRole); otherwise a Role/RoleBinding is created in each.
+namespaces: []
+# Namespaces to ignore (list or comma-separated string); only used when
+# namespaces is empty.
+namespacesIgnore: []
+
+statusInMetric: false
+infoMetric: true
+timestampMetric: true
+logLevel: info
+extraArgs: []
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+serviceMonitor:
+  create: false
+  interval: ""
+  scrapeTimeout: ""
+  additionalLabels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

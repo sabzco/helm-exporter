@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "helm-exporter.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "helm-exporter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "helm-exporter.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "helm-exporter.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "helm-exporter.fullname" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ if kindIs "map" . }}{{ .name }}{{ else }}{{ . }}{{ end }}
+        {{- end }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: helm-exporter
+          image: {{ include "helm-exporter.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- with include "helm-exporter.namespaces" . | fromJsonArray }}
+            - -namespaces={{ join "," . }}
+            {{- end }}
+            {{- with include "helm-exporter.list" .Values.namespacesIgnore | fromJsonArray }}
+            - -namespaces-ignore={{ join "," . }}
+            {{- end }}
+            - -info-metric={{ .Values.infoMetric }}
+            - -timestamp-metric={{ .Values.timestampMetric }}
+            - -status-in-metric={{ .Values.statusInMetric }}
+            - -log-level={{ .Values.logLevel }}
+            {{- with .Values.extraArgs }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 9571
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

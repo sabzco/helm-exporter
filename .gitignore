@@ -1,0 +1,8 @@
+/helm-exporter
+/dist/
+*.test
+*.out
+go.work
+go.work.sum
+.idea/
+.vscode/
